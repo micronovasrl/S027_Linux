@@ -160,6 +160,8 @@ static int ctp_thpeak;
 static int ctp_thcal;
 static int ctp_thwater;
 static int ctp_thtemp;
+static int ctp_thdiff;
+static int ctp_period_active;
 
 /*
  * ctp_get_pendown_state  : get the int_line data state,
@@ -512,6 +514,18 @@ static int ctp_fetch_sysconfig_para(void)
 		goto script_parser_fetch_err;
 	}
 	pr_info("%s: thtemp = %d. \n", __func__, ctp_thtemp);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thdiff", &ctp_thdiff, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_thdiff = %d. \n", __func__, ctp_thdiff);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_period_active", &ctp_period_active, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_period_active = %d. \n", __func__, ctp_period_active);
 
 	return 0;
 
@@ -1301,6 +1315,14 @@ static void ctp_write_settings(void)
 unsigned char buffer[10];
 int i;
 
+	/* write thdiff register */
+	fts_register_write(0x85, ctp_thdiff);
+	msleep(5);
+
+	/* write period active register, SCAN RATE */
+	fts_register_write(0x88, ctp_period_active);
+	msleep(5);
+
 	/* write thgroup register */
 	fts_register_write(0x80, ctp_thgroup);
 
@@ -1325,10 +1347,18 @@ int i;
 	fts_register_write(0x84, ctp_thtemp);
 
 	msleep(5);
+	fts_register_read(0xA0, buffer, 1);
+	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
 
-	fts_register_read(0x80, buffer, 5);
-	for(i=0;i<5;i++)
-		pr_info("reg = %d", buffer[i]);
+	msleep(5);
+	fts_register_write(0xA0, 0);
+	pr_info("**AUTO CALIBRATION ENABLED \n");
+
+	msleep(5);
+	fts_register_read(0xA0, buffer, 1);
+	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
+
+	msleep(5);
 }
 
 
