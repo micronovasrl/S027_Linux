@@ -55,6 +55,7 @@ void bcm40181_wifi_gpio_init(void);
 void bcm40183_gpio_init(void);
 void rtl8723as_gpio_init(void);
 void rtl8189es_wifi_gpio_init(void);
+void esp8089_gpio_init(void);
 
 extern struct mmc_pm_ops mmc_card_pm_ops;
 extern void sunximmc_rescan_card(unsigned id, unsigned insert);

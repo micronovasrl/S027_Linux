@@ -44,7 +44,8 @@ static char* wifi_mod[] = {" ",
 							"bcm40181",  /* 7 - BCM40181(BCM4330) */
 							"bcm40183",  /* 8 - BCM40183(BCM4330) */
 							"rtl8723as",  /* 9 - RTL8723AS(RF-SM02B) */
-							"rtl8189es"  /* 10 - RTL8189ES(SM89E00) */
+							"rtl8189es",  /* 10 - RTL8189ES(SM89E00) */
+							"esp8089", /* 11 - ESP8089 */
 							};
 
 static int mmc_pm_get_res(void);
@@ -253,6 +254,9 @@ static int __devinit mmc_pm_probe(struct platform_device *pdev)
 	case 10: /* rtl8189es */
 	    rtl8189es_wifi_gpio_init();
 	    break;
+	case 11:
+	    esp8089_gpio_init();
+	    break;
         default:
             mmc_pm_msg("Wrong sdio module select %d !!\n", ops->module_sel);
     }
@@ -296,6 +300,9 @@ static int __devexit mmc_pm_remove(struct platform_device *pdev)
 	    break;
 	case 10: /* rtl8189es */
 	    rtl8189es_wifi_gpio_init();
+	    break;
+	case 11:
+	    esp8089_gpio_init();
 	    break;
         default:
             mmc_pm_msg("Wrong sdio module select %d !!\n", ops->module_sel);
