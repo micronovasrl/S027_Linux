@@ -37,6 +37,7 @@ enum ds_type {
 	m41t00,
 	mcp7941x,
 	rx_8025,
+	m41t11,
 	last_ds_type /* always last */
 	/* rs5c372 too?  different address... */
 };
@@ -149,6 +150,10 @@ static const struct chip_desc chips[last_ds_type] = {
 		.nvram_offset	= 0x20,
 		.nvram_size	= 0x40,
 	},
+	[m41t11] = {
+		.nvram_offset	= 8,
+		.nvram_size	= 56,
+	},
 };
 
 static const struct i2c_device_id ds1307_id[] = {
@@ -163,6 +168,7 @@ static const struct i2c_device_id ds1307_id[] = {
 	{ "mcp7941x", mcp7941x },
 	{ "pt7c4338", ds_1307 },
 	{ "rx8025", rx_8025 },
+	{ "m41t11", m41t11 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ds1307_id);
@@ -781,6 +787,16 @@ read_rtc:
 	switch (ds1307->type) {
 	case ds_1307:
 	case m41t00:
+	case m41t11:
+	{
+		unsigned char ctrl;
+
+		/* set negative(bit 5=0) calibration of ~30ppm => (30/2) => ~15 */
+		ctrl = (1 << 6) | (15);
+		i2c_smbus_write_byte_data(client, DS1307_REG_CONTROL, ctrl);
+		printk(KERN_ALERT "[Rtc calibrated] \n");
+	}
+
 		/* clock halted?  turn it on, so clock can tick. */
 		if (tmp & DS1307_BIT_CH) {
 			i2c_smbus_write_byte_data(client, DS1307_REG_SECS, 0);
@@ -845,6 +861,7 @@ read_rtc:
 	switch (ds1307->type) {
 	case ds_1340:
 	case m41t00:
+	case m41t11:
 		/*
 		 * NOTE: ignores century bits; fix before deploying
 		 * systems that will run through year 2100.
