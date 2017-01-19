@@ -1126,6 +1126,17 @@ void getVerNo(u8* buf, int len)
 	int i = 0;
 	start_reg = 0xa6;
 
+	/* print cotroller fw version */
+	{
+		uint8_t fw_id;
+		uint8_t my_buf[2];
+		fts_register_read(0xa6, &fw_id, 1);
+
+		fts_register_read(0xa1, my_buf, 2);
+		pr_info( "FT5x06 Controller Fw version detected: [FwID=%02X V.%02X%02X] \n", fw_id,my_buf[0], my_buf[1]);
+	}
+
+
 #if 0
 	pr_info("read 0xa6 one time. \n");
 	if(FTS_FALSE == fts_register_read(0xa6, buf, len)){
@@ -1319,7 +1330,7 @@ static void ft5x_ts_release(void)
 
 static void ctp_write_settings(void)
 {
-unsigned char buffer[10];
+//unsigned char buffer[10];
 
 	/* write thdiff register */
 	fts_register_write(0x85, ctp_thdiff);
@@ -1352,23 +1363,23 @@ unsigned char buffer[10];
 	/* write thtemp register */
 	fts_register_write(0x84, ctp_thtemp);
 
-	msleep(5);
-	fts_register_read(0xA0, buffer, 1);
-	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
+//	msleep(5);
+//	fts_register_read(0xA0, buffer, 1);
+//	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
+//
+//	msleep(5);
+//	fts_register_write(0xA0, 0x00);
+//	pr_info("**START AUTO CALIBRATION \n");
+//	msleep(100);
+//
+//	fts_register_read(0xA0, buffer, 1);
+//	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
+//
+//	msleep(5);
+//	fts_register_write(0xA0, 0xFF);
+//	pr_info("**STOP AUTO CALIBRATION \n");
 
-	msleep(5);
-	fts_register_write(0xA0, 0x00);
-	pr_info("**START AUTO CALIBRATION \n");
-	msleep(100);
-
-	fts_register_read(0xA0, buffer, 1);
-	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
-
-	msleep(5);
-	fts_register_write(0xA0, 0xFF);
-	pr_info("**STOP AUTO CALIBRATION \n");
-
-	msleep(5);
+//	msleep(5);
 }
 
 
@@ -1847,12 +1858,446 @@ static ssize_t ft5x_ts_pressed_timeout_store(struct device *dev,
 	return count;
 }
 
+static ssize_t ft5x_ts_thgroup_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x80, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thgroup_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x80, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_thpeak_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x81, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thpeak_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x81, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_thcal_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x82, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thcal_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x82, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_thwater_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x83, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thwater_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x83, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_thtemp_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x84, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thtemp_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x84, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_thdiff_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x85, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_thdiff_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x85, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_ctrl_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x86, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_ctrl_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 0)
+		return EINVAL;
+
+	fts_register_write(0x86, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_time_enter_monitor_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x87, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_time_enter_monitor_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x87, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_period_active_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x88, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_period_active_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x88, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_period_monitor_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0x89, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_period_monitor_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0x89, val);
+
+	return count;
+}
+
+static bool autocal_enabled;
+
+static ssize_t ft5x_ts_autocal_en_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", autocal_enabled);
+}
+
+static ssize_t ft5x_ts_autocal_en_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 0)
+		return EINVAL;
+
+	autocal_enabled=val;
+
+	return count;
+}
+
+static ssize_t ft5x_ts_state_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0xa7, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_state_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 0)
+		return EINVAL;
+
+	fts_register_write(0xa7, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_err_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0xa9, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_err_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	fts_register_write(0xa9, val);
+
+	return count;
+}
+
+static ssize_t ft5x_ts_power_mode_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	unsigned char val;
+
+	fts_register_read(0xa5, &val, 1);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t ft5x_ts_power_mode_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 0)
+		return EINVAL;
+
+	fts_register_write(0xa5, val);
+
+	return count;
+}
+
 static DEVICE_ATTR(calibrate_time, 0664, ft5x_ts_calibrate_time_show, ft5x_ts_calibrate_time_store);
 static DEVICE_ATTR(pressed_timeout, 0664, ft5x_ts_pressed_timeout_show, ft5x_ts_pressed_timeout_store);
+
+static DEVICE_ATTR(thgroup, 0664, ft5x_ts_thgroup_show, ft5x_ts_thgroup_store);
+static DEVICE_ATTR(thpeak, 0664, ft5x_ts_thpeak_show, ft5x_ts_thpeak_store);
+static DEVICE_ATTR(thcal, 0664, ft5x_ts_thcal_show, ft5x_ts_thcal_store);
+static DEVICE_ATTR(thwater, 0664, ft5x_ts_thwater_show, ft5x_ts_thwater_store);
+static DEVICE_ATTR(thtemp, 0664, ft5x_ts_thtemp_show, ft5x_ts_thtemp_store);
+static DEVICE_ATTR(thdiff, 0664, ft5x_ts_thdiff_show, ft5x_ts_thdiff_store);
+
+static DEVICE_ATTR(ctrl, 0664, ft5x_ts_ctrl_show, ft5x_ts_ctrl_store);
+static DEVICE_ATTR(time_enter_monitor, 0664, ft5x_ts_time_enter_monitor_show, ft5x_ts_time_enter_monitor_store);
+static DEVICE_ATTR(period_active, 0664, ft5x_ts_period_active_show, ft5x_ts_period_active_store);
+static DEVICE_ATTR(period_monitor, 0664, ft5x_ts_period_monitor_show, ft5x_ts_period_monitor_store);
+static DEVICE_ATTR(state, 0664, ft5x_ts_state_show, ft5x_ts_state_store);
+static DEVICE_ATTR(err, 0664, ft5x_ts_err_show, ft5x_ts_err_store);
+static DEVICE_ATTR(power_mode, 0664, ft5x_ts_power_mode_show, ft5x_ts_power_mode_store);
+static DEVICE_ATTR(autocal_en, 0664, ft5x_ts_autocal_en_show, ft5x_ts_autocal_en_store);
 
 static struct attribute *ft5x_ts_attributes[] = {
 	&dev_attr_calibrate_time.attr,
 	&dev_attr_pressed_timeout.attr,
+	&dev_attr_thgroup.attr,
+	&dev_attr_thpeak.attr,
+	&dev_attr_thcal.attr,
+	&dev_attr_thwater.attr,
+	&dev_attr_thtemp.attr,
+	&dev_attr_thdiff.attr,
+	&dev_attr_ctrl.attr,
+	&dev_attr_time_enter_monitor.attr,
+	&dev_attr_period_active.attr,
+	&dev_attr_period_monitor.attr,
+	&dev_attr_state.attr,
+	&dev_attr_err.attr,
+	&dev_attr_power_mode.attr,
+	&dev_attr_autocal_en.attr,
 	NULL
 };
 
@@ -1890,7 +2335,7 @@ static void ft5x_work(struct work_struct *work)
 		}
 	}
 
-	if(calib){
+	if(calib && autocal_enabled ){
 		/* calibrate */
 		fts_register_write(0xA0, 0);
 	}
@@ -1910,6 +2355,8 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #ifdef TOUCH_KEY_SUPPORT
 	int i = 0;
 #endif
+
+	autocal_enabled = FTS_FALSE;
 
 	pr_info("====%s begin=====.  \n", __func__);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -2049,6 +2496,17 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return err;
 
 	pr_info("==%s over =\n", __func__);
+
+	/* print cotroller fw version */
+	{
+		uint8_t fw_id;
+		uint8_t my_buf[2];
+		fts_register_read(0xa6, &fw_id, 1);
+
+		fts_register_read(0xa1, my_buf, 2);
+		pr_info( "FT5x06 Controller Fw version detected: [FwID=%02X V.%02X%02X] \n", fw_id,my_buf[0], my_buf[1]);
+	}
+
 
 	return 0;
 
