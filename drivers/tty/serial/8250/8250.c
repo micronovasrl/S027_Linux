@@ -47,6 +47,8 @@
 
 #include "8250.h"
 
+#include <plat/sys_config.h>
+
 /*
  * Configuration:
  *   share_irqs - whether we pass IRQF_SHARED to request_irq().  This option
@@ -1256,8 +1258,42 @@ static void autoconfig_irq(struct uart_8250_port *up)
 	port->irq = (irq > 0) ? irq : 0;
 }
 
+static void clear_rx_fifo(struct uart_8250_port *up);
+
 static inline void __stop_tx(struct uart_8250_port *p)
 {
+	if(p->port.rts_gpio){
+		unsigned char lsr;
+
+		/* wait for byte to be shifted out */
+		do{
+			lsr = serial_in(p, UART_LSR);
+		}while(!(lsr & UART_LSR_TEMT));
+
+		/* set pin low */
+		gpio_write_one_pin_value(p->port.rts_gpio, 0, NULL);
+	}
+
+	if(p->port.half_duplex){
+		unsigned char lsr;
+
+		/* wait for byte to be shifted out */
+		do{
+			lsr = serial_in(p, UART_LSR);
+		}while(!(lsr & UART_LSR_TEMT));
+
+		p->ier |= (UART_IER_RLSI | UART_IER_RDI);
+		serial_port_out(&p->port, UART_IER, p->ier);
+
+		/* clear rx buffer */
+		lsr = serial_in(p, UART_LSR);
+
+		while((lsr & UART_LSR_DR)){
+			serial_in(p, UART_RX);
+			lsr = serial_in(p, UART_LSR);
+		}
+	}
+
 	if (p->ier & UART_IER_THRI) {
 		p->ier &= ~UART_IER_THRI;
 		serial_out(p, UART_IER, p->ier);
@@ -1286,6 +1322,17 @@ static void serial8250_start_tx(struct uart_port *port)
 		container_of(port, struct uart_8250_port, port);
 
 	if (!(up->ier & UART_IER_THRI)) {
+		if(port->rts_gpio){
+			/* set pin high */
+			gpio_write_one_pin_value(port->rts_gpio, 1, NULL);
+		}
+
+		if(port->half_duplex){
+			/* disable receiver */
+			up->ier &= ~(UART_IER_RLSI | UART_IER_RDI);
+			serial_port_out(port, UART_IER, up->ier);
+		}
+
 		up->ier |= UART_IER_THRI;
 		serial_port_out(port, UART_IER, up->ier);
 
@@ -3198,6 +3245,8 @@ int serial8250_register_port(struct uart_port *port)
 		uart->port.flags        = port->flags | UPF_BOOT_AUTOCONF;
 		uart->port.mapbase      = port->mapbase;
 		uart->port.private_data = port->private_data;
+		uart->port.half_duplex  = port->half_duplex;
+		uart->port.rts_gpio     = port->rts_gpio;
 		if (port->dev)
 			uart->port.dev = port->dev;
 

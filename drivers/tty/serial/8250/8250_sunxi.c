@@ -54,6 +54,9 @@
 #define UART_FORCE_CFG      (1 << 1)
 #define UART_FORCE_UPDATE   (1 << 2)
 
+int sw_serial_half_duplex[8];
+int rts_gpios_handles[8];
+
 struct sw_serial_port {
 	int port_no;
 	int line;
@@ -211,6 +214,8 @@ static int __devinit sw_serial_probe(struct platform_device *dev)
 	port.serial_in = sw_serial_in32;
 	port.serial_out = sw_serial_out32;
 	port.handle_irq = sw_serial_handle_irq;
+	port.half_duplex = sw_serial_half_duplex[dev->id];
+	port.rts_gpio = rts_gpios_handles[dev->id];
 
 	pr_info("serial probe %d irq %d mapbase 0x%08x\n", dev->id,
 		sport->irq, sport->mmres->start);
@@ -335,6 +340,8 @@ static int __init sw_serial_init(void)
 	int ret;
 	int i, max = sw_serial_get_max_ports();
 	int used = 0;
+	int half_duplex;
+	int rts_gpio_handle;
 	char uart_para[16];
 
 	uart_used = 0;
@@ -349,6 +356,22 @@ static int __init sw_serial_init(void)
 		if (used) {
 			uart_used |= 1 << i;
 			platform_device_register(&sw_uart_dev[i]);
+		}
+
+		half_duplex = false;
+		script_parser_fetch(uart_para, "uart_half_duplex", &half_duplex, sizeof(int));
+
+		sw_serial_half_duplex[i] = half_duplex;
+
+		rts_gpio_handle = gpio_request_ex(uart_para, "uart_rts_gpio");
+
+		rts_gpios_handles[i] = rts_gpio_handle;
+
+		if(rts_gpio_handle){
+			/* set as output */
+			gpio_set_one_pin_io_status(rts_gpio_handle,1, NULL);
+			/* set pin low */
+			gpio_write_one_pin_value(rts_gpio_handle, 1, NULL);
 		}
 	}
 
