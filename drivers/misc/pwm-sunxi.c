@@ -67,9 +67,6 @@
 void release_pwm_sunxi(struct kobject *kobj); 
 void pwm_setup_available_channels(void ); 
 ssize_t pwm_set_mode(unsigned int enable, struct sun4i_pwm_available_channel *chan); 
-enum sun4i_pwm_prescale  pwm_get_best_prescale(unsigned long long period); 
-unsigned int get_entire_cycles(struct sun4i_pwm_available_channel *chan); 
-unsigned int get_active_cycles(struct sun4i_pwm_available_channel *chan); 
 unsigned long convert_string_to_microseconds(const char *buf); 
 int pwm_set_period_and_duty(struct sun4i_pwm_available_channel *chan); 
 void fixup_duty(struct sun4i_pwm_available_channel *chan); 
@@ -156,7 +153,7 @@ static void __init sunxi_pwm_register_class(void)
 
 static int __init sunxi_pwm_init(void) 
 { 
-	int init_enable, init_duty_percent, init_period;
+	int init_enable, init_duty_percent, init_period, init_prescaler;
 	struct sun4i_pwm_available_channel *chan;
 	int err = 0;
 
@@ -192,9 +189,15 @@ static int __init sunxi_pwm_init(void)
 			init_duty_percent=100;
 		}
 
+		err = script_parser_fetch("pwm0_para", "pwm_prescaler", &init_prescaler,sizeof(init_prescaler)/sizeof(int));
+		if (err) {
+			pr_err("%s script_parser_fetch '[pwm0_para]' 'init_prescaler' err - using 1\n",	__func__);
+			init_prescaler=PRESCALE_DIV1;
+		}
+
 		chan->duty_percent=init_duty_percent;
 		chan->period = init_period; 
-		chan->prescale = pwm_get_best_prescale(init_period); 
+		chan->prescale = init_prescaler; 
 		fixup_duty(chan); 
 #ifdef SUNXI_PWM_DEBUG
 		printk("pwm-sunxi: pwm0 set initial values\n");
@@ -237,9 +240,15 @@ static int __init sunxi_pwm_init(void)
 			init_duty_percent=100;
 		}
 
+		err = script_parser_fetch("pwm1_para", "pwm_prescaler", &init_prescaler,sizeof(init_prescaler)/sizeof(int));
+		if (err) {
+			pr_err("%s script_parser_fetch '[pwm1_para]' 'init_prescaler' err - using 1\n",	__func__);
+			init_prescaler=PRESCALE_DIV1;
+		}
+
 		chan->duty_percent=init_duty_percent;
 		chan->period = init_period; 
-		chan->prescale = pwm_get_best_prescale(init_period); 
+		chan->prescale = init_prescaler; 
 		fixup_duty(chan); 
 #ifdef SUNXI_PWM_DEBUG
 		printk("pwm-sunxi: pwm0 set initial values\n");
@@ -389,7 +398,6 @@ static ssize_t pwm_period_store(struct device *dev,struct device_attribute *attr
 			chan->duty = period; 
 		} 
 		chan->period = period; 
-		chan->prescale = pwm_get_best_prescale(period); 
 		fixup_duty(chan); 
 		if(chan->duty) { 
 			pwm_set_mode(NO_ENABLE_CHANGE,chan); 
@@ -459,112 +467,24 @@ unsigned long convert_string_to_microseconds(const char *buf) {
 	} 
 	return microseconds; 
 } 
- 
- 
- 
- 
-static const unsigned int prescale_divisor[13] = {120, 
-						  180, 
-						  240, 
-						  360, 
-						  480, 
-						  480, /* Invalid Option */ 
-						  480, /* Invalid Option */ 
-						  480, /* Invalid Option */ 
-						  12000, 
-						  24000, 
-						  36000, 
-						  48000, 
-						  72000}; 
- 
-/* 
- * Find the best prescale value for the period 
- * We want to get the highest period cycle count possible, so we look 
- * make a run through the prescale values looking for numbers over 
- * min_optimal_period_cycles.  If none are found then root though again 
- * taking anything that works 
- */ 
-enum sun4i_pwm_prescale  pwm_get_best_prescale(unsigned long long period_in) { 
-	int i; 
-	unsigned long period = period_in; 
-	const unsigned long min_optimal_period_cycles = MAX_CYCLES / 2; 
-	const unsigned long min_period_cycles = 0x02; 
-	enum sun4i_pwm_prescale best_prescale = 0; 
- 
-	best_prescale = -1; 
-	for(i = 0 ; i < 13 ; i++) { 
-		unsigned long int check_value = (prescale_divisor[i] /24); 
-		if(check_value < 1 || check_value > period) { 
-			break; 
-		} 
-		if(((period / check_value) >= min_optimal_period_cycles) && 
-			((period / check_value) <= MAX_CYCLES)) { 
-			best_prescale = i; 
-			break; 
-		} 
-	} 
- 
-	if(best_prescale > 13) { 
-		for(i = 0 ; i < 13 ; i++) { 
-			unsigned long int check_value = (prescale_divisor[i] /24); 
-			if(check_value < 1 || check_value > period) { 
-				break; 
-			} 
-			if(((period / check_value) >= min_period_cycles) && 
-				((period / check_value) <= MAX_CYCLES)) { 
-				best_prescale = i; 
-				break; 
-			} 
-		} 
-	} 
-	if(best_prescale > 13) { 
-		best_prescale = PRESCALE_DIV480;  /* Something that's not zero - use invalid prescale value */ 
-	} 
- 
-	return best_prescale; 
-} 
- 
-/* 
- * return the number of cycles for the channel period computed from the microseconds 
- * for the period.  Allwinner docs call this "entire" cycles 
- */ 
-unsigned int get_entire_cycles(struct sun4i_pwm_available_channel *chan) { 
-	unsigned int entire_cycles = 0x01; 
-	if ((2 * prescale_divisor[chan->prescale] * MAX_CYCLES) > 0) { 
-		entire_cycles = chan->period / (prescale_divisor[chan->prescale] /24); 
-	} 
-	if(entire_cycles == 0) {entire_cycles = MAX_CYCLES;} 
-	if(entire_cycles > MAX_CYCLES) {entire_cycles = MAX_CYCLES;} 
-#ifdef SUNXI_PWM_DEBUG
-	printk("Best prescale was %d, entire cycles was %u\n",chan->prescale, entire_cycles); 
-#endif
- 
-	return entire_cycles; 
-} 
- 
-/* 
- * return the number of cycles for the channel duty computed from the microseconds 
- * for the duty.  Allwinner docs call this "active" cycles 
- */ 
-unsigned int get_active_cycles(struct sun4i_pwm_available_channel *chan) { 
-	unsigned int active_cycles = 0x01; 
-	unsigned int entire_cycles = get_entire_cycles(chan); 
-	if(chan->duty < 0 && chan->period) { 
-       		active_cycles = entire_cycles-1; 
-	} else if ((2 * prescale_divisor[chan->prescale] * MAX_CYCLES) > 0) { 
-		active_cycles = chan->duty / (prescale_divisor[chan->prescale] /24); 
-	} 
-/*	if(active_cycles == 0) {active_cycles = 0x0ff;} */ 
-#ifdef SUNXI_PWM_DEBUG
-	printk("Best prescale was %d, active cycles was %u (before entire check)\n",chan->prescale, active_cycles); 
-#endif
-	if(active_cycles > MAX_CYCLES) {active_cycles = entire_cycles-1;} 
-#ifdef SUNXI_PWM_DEBUG
-	printk("Best prescale was %d, active cycles was %u (after  entire check)\n",chan->prescale, active_cycles); 
-#endif
-	return active_cycles; 
-} 
- 
+
+static const unsigned int prescale_divisor[16] = {120,
+						  180,
+						  240,
+						  360,
+						  480,
+						  480, /* Invalid Option */
+						  480, /* Invalid Option */
+						  480, /* Invalid Option */
+						  12000,
+						  24000,
+						  36000,
+						  48000,
+						  72000,
+						  0,
+						  0,
+						  1};
+
 /* 
  * When the duty is set, compute the number of microseconds 
  * based on the period. 
@@ -630,24 +550,25 @@ static ssize_t pwm_pulse_store(struct device *dev,struct device_attribute *attr,
 	} 
 	return status; 
 } 
- 
-int pwm_set_period_and_duty(struct sun4i_pwm_available_channel *chan) { 
-	int return_val = -EINVAL; 
-	unsigned int entire_cycles = get_entire_cycles(chan); 
-	unsigned int active_cycles = get_active_cycles(chan); 
-	chan->period_reg.initializer = 0; 
-	if(entire_cycles >= active_cycles && active_cycles) { 
-		chan->period_reg.s.pwm_entire_cycles = entire_cycles; 
-		chan->period_reg.s.pwm_active_cycles = active_cycles; 
-	} else { 
-		chan->period_reg.s.pwm_entire_cycles = MAX_CYCLES; 
-		chan->period_reg.s.pwm_active_cycles = MAX_CYCLES; 
-	} 
-	writel(chan->period_reg.initializer, chan->period_reg_addr); 
-	return return_val; 
-} 
- 
- 
+
+int pwm_set_period_and_duty(struct sun4i_pwm_available_channel *chan) {
+	int return_val = -EINVAL;
+
+	chan->period_reg.initializer = 0;
+
+	if(chan->duty <= chan->period) {
+		chan->period_reg.s.pwm_entire_cycles = chan->period;
+		chan->period_reg.s.pwm_active_cycles = chan->duty;
+	} else {
+		chan->period_reg.s.pwm_entire_cycles = MAX_CYCLES;
+		chan->period_reg.s.pwm_active_cycles = MAX_CYCLES;
+	}
+
+	writel(chan->period_reg.initializer, chan->period_reg_addr);
+
+	return return_val;
+}
+
 ssize_t pwm_set_mode(unsigned int enable, struct sun4i_pwm_available_channel *chan) { 
 	ssize_t status = 0; 
 	if(enable == NO_ENABLE_CHANGE) { 
@@ -866,7 +787,6 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		return -EINVAL; 
  
 	pwm->chan->period = period_ns / 1000; 
-	pwm->chan->prescale = pwm_get_best_prescale(pwm->chan->period); 
 	pwm->chan->duty = duty_ns / 1000; 
 	fixup_duty(pwm->chan); 
 	pwm_set_mode(NO_ENABLE_CHANGE,pwm->chan); 

@@ -41,7 +41,8 @@ enum sun4i_pwm_prescale {
 	PRESCALE_DIV24k  = 0x09, 
 	PRESCALE_DIV36k  = 0x0a, 
 	PRESCALE_DIV48k  = 0x0b, 
-	PRESCALE_DIV72k  = 0x0c 
+	PRESCALE_DIV72k  = 0x0c,
+	PRESCALE_DIV1	 = 0x0f,
 }; 
  
  
