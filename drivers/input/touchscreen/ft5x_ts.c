@@ -685,6 +685,13 @@ struct ft5x_ts_data {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend	early_suspend;
 #endif
+
+	bool pressed;
+	int calib_time;
+	int calib_time_cnt;
+	int pressed_timeout;
+	int pressed_timeout_cnt;
+	struct delayed_work dwork;
 };
 
 
@@ -1396,9 +1403,12 @@ static int ft5x_read_data(void)
 	print_point_info("touch point = %d\n",event->touch_point);
 
 	if (event->touch_point == 0) {
+		data->pressed = false;
 		ft5x_ts_release();
 		return 1;
 	}
+
+	data->pressed = true;
 
 	switch (event->touch_point) {
 	case 5:
@@ -1781,20 +1791,19 @@ static void ft5x_ts_resume(struct early_suspend *handler)
 }
 #endif  //CONFIG_HAS_EARLYSUSPEND
 
-static ssize_t ft5x_ts_calibrate_show(struct device *dev,
+static ssize_t ft5x_ts_calibrate_time_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
-	char clb;
+	struct ft5x_ts_data *ft5x = i2c_get_clientdata(this_client);
 
-	fts_register_read(0xA0, &clb, 1);
-
-	return sprintf(buf, "%x\n", clb);
+	return sprintf(buf, "%d\n", ft5x->calib_time);
 }
 
-static ssize_t ft5x_ts_calibrate_store(struct device *dev,
+static ssize_t ft5x_ts_calibrate_time_store(struct device *dev,
 				     struct device_attribute *attr,
 				     const char *buf, size_t count)
 {
+	struct ft5x_ts_data *ft5x = i2c_get_clientdata(this_client);
 	unsigned int val;
 	int error;
 
@@ -1802,21 +1811,92 @@ static ssize_t ft5x_ts_calibrate_store(struct device *dev,
 	if (error)
 		return error;
 
-	fts_register_write(0xA0, val);
+	if(val < 1)
+		return EINVAL;
+
+	ft5x->calib_time = val;
 
 	return count;
 }
 
-static DEVICE_ATTR(calibrate, 0664, ft5x_ts_calibrate_show, ft5x_ts_calibrate_store);
+static ssize_t ft5x_ts_pressed_timeout_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct ft5x_ts_data *ft5x = i2c_get_clientdata(this_client);
+
+	return sprintf(buf, "%d\n", ft5x->pressed_timeout);
+}
+
+static ssize_t ft5x_ts_pressed_timeout_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	struct ft5x_ts_data *ft5x = i2c_get_clientdata(this_client);
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	if(val < 1)
+		return EINVAL;
+
+	ft5x->pressed_timeout = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(calibrate_time, 0664, ft5x_ts_calibrate_time_show, ft5x_ts_calibrate_time_store);
+static DEVICE_ATTR(pressed_timeout, 0664, ft5x_ts_pressed_timeout_show, ft5x_ts_pressed_timeout_store);
 
 static struct attribute *ft5x_ts_attributes[] = {
-	&dev_attr_calibrate.attr,
+	&dev_attr_calibrate_time.attr,
+	&dev_attr_pressed_timeout.attr,
 	NULL
 };
 
 static const struct attribute_group ft5x_ts_attr_group = {
 	.attrs = ft5x_ts_attributes,
 };
+
+static void ft5x_work(struct work_struct *work)
+{
+	struct ft5x_ts_data *priv = container_of(work, struct ft5x_ts_data, dwork.work);
+	bool calib = false;
+
+	if(priv->calib_time_cnt){
+		priv->calib_time_cnt--;
+
+		if(priv->calib_time_cnt == 0){
+			priv->calib_time_cnt = priv->calib_time;
+			calib = true;
+		}
+	}
+
+	/* if not pressed, calibrate */
+	if(priv->pressed){
+		calib = false;
+	}
+	else {
+		priv->pressed_timeout_cnt = priv->pressed_timeout;
+	}
+
+	if(priv->pressed_timeout_cnt){
+		priv->pressed_timeout_cnt--;
+
+		if(priv->pressed_timeout_cnt == 0){
+			calib = true;
+		}
+	}
+
+	if(calib){
+		/* calibrate */
+		fts_register_write(0xA0, 0);
+	}
+
+	schedule_delayed_work(&priv->dwork, msecs_to_jiffies(1000));
+}
 
 static int
 ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -1877,6 +1957,11 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	ft5x_ts->input_dev = input_dev;
+
+	ft5x_ts->calib_time_cnt = ft5x_ts->calib_time = 1;
+	ft5x_ts->pressed_timeout_cnt = ft5x_ts->pressed_timeout = 60;
+	INIT_DELAYED_WORK(&ft5x_ts->dwork, ft5x_work);
+	schedule_delayed_work(&ft5x_ts->dwork, 0);
 
 	set_bit(EV_ABS, input_dev->evbit);
 	set_bit(EV_KEY, input_dev->evbit);
