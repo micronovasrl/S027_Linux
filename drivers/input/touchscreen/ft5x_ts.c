@@ -1313,7 +1313,6 @@ static void ft5x_ts_release(void)
 static void ctp_write_settings(void)
 {
 unsigned char buffer[10];
-int i;
 
 	/* write thdiff register */
 	fts_register_write(0x85, ctp_thdiff);
@@ -1351,12 +1350,16 @@ int i;
 	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
 
 	msleep(5);
-	fts_register_write(0xA0, 0);
-	pr_info("**AUTO CALIBRATION ENABLED \n");
+	fts_register_write(0xA0, 0x00);
+	pr_info("**START AUTO CALIBRATION \n");
+	msleep(100);
 
-	msleep(5);
 	fts_register_read(0xA0, buffer, 1);
 	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
+
+	msleep(5);
+	fts_register_write(0xA0, 0xFF);
+	pr_info("**STOP AUTO CALIBRATION \n");
 
 	msleep(5);
 }
@@ -1778,6 +1781,43 @@ static void ft5x_ts_resume(struct early_suspend *handler)
 }
 #endif  //CONFIG_HAS_EARLYSUSPEND
 
+static ssize_t ft5x_ts_calibrate_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	char clb;
+
+	fts_register_read(0xA0, &clb, 1);
+
+	return sprintf(buf, "%x\n", clb);
+}
+
+static ssize_t ft5x_ts_calibrate_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error)
+		return error;
+
+	fts_register_write(0xA0, val);
+
+	return count;
+}
+
+static DEVICE_ATTR(calibrate, 0664, ft5x_ts_calibrate_show, ft5x_ts_calibrate_store);
+
+static struct attribute *ft5x_ts_attributes[] = {
+	&dev_attr_calibrate.attr,
+	NULL
+};
+
+static const struct attribute_group ft5x_ts_attr_group = {
+	.attrs = ft5x_ts_attributes,
+};
+
 static int
 ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -1918,6 +1958,10 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	ctp_write_settings();
+
+	err = sysfs_create_group(&dev->kobj, &ft5x_ts_attr_group);
+	if (err)
+		return err;
 
 	pr_info("==%s over =\n", __func__);
 
