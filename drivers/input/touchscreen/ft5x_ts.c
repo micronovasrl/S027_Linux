@@ -115,15 +115,17 @@ static int key_val = 0;
 
 #define CTP_IRQ_MODE			(NEGATIVE_EDGE)
 #define CTP_NAME			FT5X_NAME
-#define TS_RESET_LOW_PERIOD		(1)
-#define TS_INITIAL_HIGH_PERIOD		(30)
-#define TS_WAKEUP_LOW_PERIOD	(20)
-#define TS_WAKEUP_HIGH_PERIOD	(20)
+#define TS_RESET_LOW_PERIOD		(50)
+#define TS_INITIAL_HIGH_PERIOD		(500)
+#define TS_WAKEUP_LOW_PERIOD	(300)
+#define TS_WAKEUP_HIGH_PERIOD	(300)
 #define TS_POLL_DELAY			(10)	/* ms delay between samples */
 #define TS_POLL_PERIOD			(10)	/* ms delay between samples */
 #define SCREEN_MAX_X			(screen_max_x)
 #define SCREEN_MAX_Y			(screen_max_y)
 #define PRESS_MAX			(255)
+#define CTP_MAX_X			(ctp_max_x)
+#define CTP_MAX_Y			(ctp_max_y)
 
 
 static void* __iomem gpio_addr = NULL;
@@ -137,6 +139,8 @@ static user_gpio_set_t gpio_int_info[1];
 
 static int screen_max_x = 0;
 static int screen_max_y = 0;
+static int ctp_max_x = 0;
+static int ctp_max_y = 0;
 static int revert_x_flag = 0;
 static int revert_y_flag = 0;
 static int exchange_x_y_flag = 0;
@@ -148,6 +152,14 @@ static union{
 	const unsigned short normal_i2c[2];
 }u_i2c_addr = {{0x00},};
 static __u32 twi_id = 0;
+
+static int ft5x_set_reg(u8 addr, u8 para);
+
+static int ctp_thgroup;
+static int ctp_thpeak;
+static int ctp_thcal;
+static int ctp_thwater;
+static int ctp_thtemp;
 
 /*
  * ctp_get_pendown_state  : get the int_line data state,
@@ -459,6 +471,48 @@ static int ctp_fetch_sysconfig_para(void)
 	}
 	pr_info("%s: exchange_x_y_flag = %d. \n", __func__, exchange_x_y_flag);
 
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_max_x", &ctp_max_x, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: exchange_x_y_flag = %d. \n", __func__, exchange_x_y_flag);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_max_y", &ctp_max_y, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: exchange_x_y_flag = %d. \n", __func__, exchange_x_y_flag);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thgroup", &ctp_thgroup, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: thgroup = %d. \n", __func__, ctp_thgroup);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thpeak", &ctp_thpeak, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: thpeak = %d. \n", __func__, ctp_thpeak);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thcal", &ctp_thcal, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: thcal = %d. \n", __func__, ctp_thcal);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thwater", &ctp_thwater, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: thwater = %d. \n", __func__, ctp_thwater);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_thtemp", &ctp_thtemp, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: thtemp = %d. \n", __func__, ctp_thtemp);
+
 	return 0;
 
 script_parser_fetch_err:
@@ -484,6 +538,7 @@ static void ctp_reset(void)
 		mdelay(TS_INITIAL_HIGH_PERIOD);
 	}
 }
+
 
 /**
  * ctp_wakeup - function
@@ -1241,6 +1296,42 @@ static void ft5x_ts_release(void)
 
 }
 
+static void ctp_write_settings(void)
+{
+unsigned char buffer[10];
+int i;
+
+	/* write thgroup register */
+	fts_register_write(0x80, ctp_thgroup);
+
+	msleep(5);
+
+	/* write thpeak register */
+	fts_register_write(0x81, ctp_thpeak);
+
+	msleep(5);
+
+	/* write thcal register */
+	fts_register_write(0x82, ctp_thcal);
+
+	msleep(5);
+
+	/* write thwater register */
+	fts_register_write(0x83, ctp_thwater);
+
+	msleep(5);
+
+	/* write thtemp register */
+	fts_register_write(0x84, ctp_thtemp);
+
+	msleep(5);
+
+	fts_register_read(0x80, buffer, 5);
+	for(i=0;i<5;i++)
+		pr_info("reg = %d", buffer[i]);
+}
+
+
 /**
  * Data format:
  * 16b, padding
@@ -1386,6 +1477,21 @@ static int ft5x_read_data(void)
 		break;
 	default:
 		return -1;
+	}
+
+	/* relate x and y according to screen max x and y */
+	if((ctp_max_x) && (ctp_max_y))
+	{
+		event->x1 = event->x1 * screen_max_x / ctp_max_x;
+		event->y1 = event->y1 * screen_max_y / ctp_max_y;
+		event->x2 = event->x2 * screen_max_x / ctp_max_x;
+		event->y2 = event->y2 * screen_max_y / ctp_max_y;
+		event->x3 = event->x3 * screen_max_x / ctp_max_x;
+		event->y3 = event->y3 * screen_max_y / ctp_max_y;
+		event->x4 = event->x4 * screen_max_x / ctp_max_x;
+		event->y4 = event->y4 * screen_max_y / ctp_max_y;
+		event->x5 = event->x5 * screen_max_x / ctp_max_x;
+		event->y5 = event->y5 * screen_max_y / ctp_max_y;
 	}
 
 	event->pressure = 200;
@@ -1637,6 +1743,7 @@ static void ft5x_ts_resume(struct early_suspend *handler)
 	} else {
 		ctp_ops.ts_reset();
 		ctp_ops.ts_wakeup();
+		ctp_write_settings();
 	}
 }
 #endif  //CONFIG_HAS_EARLYSUSPEND
@@ -1762,7 +1869,7 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		pr_info("%s:ctp_ops.set_irq_mode err.\n", __func__);
 		goto exit_set_irq_mode;
 	}
-	err = request_irq(SW_INT_IRQNO_PIO, ft5x_ts_interrupt, IRQF_TRIGGER_FALLING | IRQF_SHARED, "ft5x_ts", ft5x_ts);
+	err = request_irq(SW_INT_IRQNO_PIO, ft5x_ts_interrupt, IRQF_SHARED, "ft5x_ts", ft5x_ts);
 
 	if (err < 0) {
 		dev_err(&client->dev, "ft5x_ts_probe: request irq failed\n");
@@ -1779,6 +1886,8 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			err = PTR_ERR(dev);
 			return err;
 	}
+
+	ctp_write_settings();
 
 	pr_info("==%s over =\n", __func__);
 
