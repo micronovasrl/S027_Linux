@@ -311,6 +311,8 @@ typedef struct _mali_osk_lock_t_struct _mali_osk_lock_t;
 /** @brief returns a lock's owner (thread id) if debugging is enabled
  */
 u32 _mali_osk_lock_get_owner( _mali_osk_lock_t *lock );
+#else
+#define MALI_DEBUG_ASSERT_LOCK_HELD(l) do {} while(0)
 #endif
 
 /** @} */ /* end group _mali_osk_lock */
