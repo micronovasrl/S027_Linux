@@ -689,6 +689,28 @@ static int __init axp_board_init(void)
         axp_mfd_i2c_board_info[0].addr = pmu_twi_addr;
         axp_mfd_i2c_board_info[0].irq = pmu_irq_id;
 
+        /* print AXP209 init */
+        printk(KERN_ALERT "************************************\n");
+        printk(KERN_ALERT "			axp 209 INIT CONFIG			\n");
+        printk(KERN_ALERT "************************************\n");
+
+        printk(KERN_ALERT "pmu_init_chgvol = [%d] \n", pmu_init_chgvol);
+        printk(KERN_ALERT "pmu_pwroff_vol = [%d] \n", pmu_pwroff_vol);
+        printk(KERN_ALERT "pmu_battery_cap = [%d] \n", pmu_battery_cap);
+        printk(KERN_ALERT "pmu_init_chgcur = [%d] \n", pmu_init_chgcur);
+        printk(KERN_ALERT "pmu_init_chgvol = [%d] \n", pmu_init_chgvol);
+        printk(KERN_ALERT "pmu_init_chgend_rate = [%d] \n", pmu_init_chgend_rate);
+        printk(KERN_ALERT "pmu_init_chg_enabled = [%d] \n", pmu_init_chg_enabled);
+        printk(KERN_ALERT "pmu_init_adc_freq = [%d] \n", pmu_init_adc_freq);
+        printk(KERN_ALERT "pmu_init_chg_pretime = [%d] \n", pmu_init_chg_pretime);
+        printk(KERN_ALERT "pmu_init_chg_csttime = [%d] \n", pmu_init_chg_csttime);
+        printk(KERN_ALERT "pmu_twi_addr = [%d] \n", pmu_twi_addr);
+        printk(KERN_ALERT "pmu_irq_id = [%d] \n", pmu_irq_id);
+
+        printk(KERN_ALERT "************************************\n");
+        printk(KERN_ALERT "************************************\n");
+
+
         return i2c_register_board_info(pmu_twi_id, axp_mfd_i2c_board_info,
 				ARRAY_SIZE(axp_mfd_i2c_board_info));
     }
