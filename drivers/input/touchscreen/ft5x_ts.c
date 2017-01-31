@@ -162,8 +162,8 @@ static int ctp_thwater;
 static int ctp_thtemp;
 static int ctp_thdiff;
 static int ctp_period_active;
-static int ctp_ctrl;
-static int ctp_power_mode;
+static int ctp_ctrl; // fts_register_write(0x86, val);
+static int ctp_power_mode; // fts_register_write(0xa5, val);
 static int ctp_autocal_en;
 static int ctp_calib_time;
 static int ctp_pressed_timeout;
@@ -548,19 +548,19 @@ static int ctp_fetch_sysconfig_para(void)
 		pr_err("ft5x_ts: script_parser_fetch err. \n");
 		goto script_parser_fetch_err;
 	}
-	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_autocal_en);
+	pr_info("%s: ctp_autocal_en = %d. \n", __func__, ctp_autocal_en);
 
 	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_calib_time", &ctp_calib_time, 1)){
 		pr_err("ft5x_ts: script_parser_fetch err. \n");
 		goto script_parser_fetch_err;
 	}
-	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_calib_time);
+	pr_info("%s: ctp_calib_time = %d. \n", __func__, ctp_calib_time);
 
 	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_pressed_timeout", &ctp_pressed_timeout, 1)){
 		pr_err("ft5x_ts: script_parser_fetch err. \n");
 		goto script_parser_fetch_err;
 	}
-	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_pressed_timeout);
+	pr_info("%s: ctp_pressed_timeout = %d. \n", __func__, ctp_pressed_timeout);
 
 	return 0;
 
@@ -1398,23 +1398,17 @@ static void ctp_write_settings(void)
 	/* write thtemp register */
 	fts_register_write(0x84, ctp_thtemp);
 
-//	msleep(5);
-//	fts_register_read(0xA0, buffer, 1);
-//	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
-//
-//	msleep(5);
-//	fts_register_write(0xA0, 0x00);
-//	pr_info("**START AUTO CALIBRATION \n");
-//	msleep(100);
-//
-//	fts_register_read(0xA0, buffer, 1);
-//	pr_info("**AUTO CALIBRATION REGISTER = %d\n", buffer[0]);
-//
-//	msleep(5);
-//	fts_register_write(0xA0, 0xFF);
-//	pr_info("**STOP AUTO CALIBRATION \n");
+	msleep(5);
 
-//	msleep(5);
+	/* write ctrl register */
+	fts_register_write(0x86, ctp_ctrl);
+
+	msleep(5);
+
+	/* write power_mode register */
+	fts_register_write(0xa5, ctp_power_mode);
+
+	msleep(5);
 }
 
 
