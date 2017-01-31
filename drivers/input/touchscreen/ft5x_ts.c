@@ -162,6 +162,11 @@ static int ctp_thwater;
 static int ctp_thtemp;
 static int ctp_thdiff;
 static int ctp_period_active;
+static int ctp_ctrl;
+static int ctp_power_mode;
+static int ctp_autocal_en;
+static int ctp_calib_time;
+static int ctp_pressed_timeout;
 
 /*
  * ctp_get_pendown_state  : get the int_line data state,
@@ -526,6 +531,36 @@ static int ctp_fetch_sysconfig_para(void)
 		goto script_parser_fetch_err;
 	}
 	pr_info("%s: ctp_period_active = %d. \n", __func__, ctp_period_active);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_ctrl", &ctp_ctrl, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_ctrl = %d. \n", __func__, ctp_ctrl);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_power_mode", &ctp_power_mode, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_power_mode);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_autocal_en", &ctp_autocal_en, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_autocal_en);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_calib_time", &ctp_calib_time, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_calib_time);
+
+	if(SCRIPT_PARSER_OK != script_parser_fetch("ctp_para", "ctp_pressed_timeout", &ctp_pressed_timeout, 1)){
+		pr_err("ft5x_ts: script_parser_fetch err. \n");
+		goto script_parser_fetch_err;
+	}
+	pr_info("%s: ctp_power_mode = %d. \n", __func__, ctp_pressed_timeout);
 
 	return 0;
 
@@ -2148,12 +2183,10 @@ static ssize_t ft5x_ts_period_monitor_store(struct device *dev,
 	return count;
 }
 
-static bool autocal_enabled;
-
 static ssize_t ft5x_ts_autocal_en_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", autocal_enabled);
+	return sprintf(buf, "%d\n", ctp_autocal_en);
 }
 
 static ssize_t ft5x_ts_autocal_en_store(struct device *dev,
@@ -2170,7 +2203,7 @@ static ssize_t ft5x_ts_autocal_en_store(struct device *dev,
 	if(val < 0)
 		return EINVAL;
 
-	autocal_enabled=val;
+	ctp_autocal_en=val;
 
 	return count;
 }
@@ -2335,7 +2368,7 @@ static void ft5x_work(struct work_struct *work)
 		}
 	}
 
-	if(calib && autocal_enabled ){
+	if(calib && ctp_autocal_en ){
 		/* calibrate */
 		fts_register_write(0xA0, 0);
 	}
@@ -2356,7 +2389,7 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int i = 0;
 #endif
 
-	autocal_enabled = FTS_FALSE;
+	ctp_autocal_en = FTS_FALSE;
 
 	pr_info("====%s begin=====.  \n", __func__);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -2405,8 +2438,14 @@ ft5x_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	ft5x_ts->input_dev = input_dev;
 
-	ft5x_ts->calib_time_cnt = ft5x_ts->calib_time = 1;
-	ft5x_ts->pressed_timeout_cnt = ft5x_ts->pressed_timeout = 60;
+	if(!ctp_calib_time)
+		ft5x_ts->calib_time_cnt = ft5x_ts->calib_time = 1;
+	else
+		ft5x_ts->calib_time_cnt = ft5x_ts->calib_time = ctp_calib_time;
+	if(!ctp_pressed_timeout)
+		ft5x_ts->pressed_timeout_cnt = ft5x_ts->pressed_timeout = 60;
+	else
+		ft5x_ts->pressed_timeout_cnt = ft5x_ts->pressed_timeout = ctp_pressed_timeout;
 	INIT_DELAYED_WORK(&ft5x_ts->dwork, ft5x_work);
 	schedule_delayed_work(&ft5x_ts->dwork, 0);
 
